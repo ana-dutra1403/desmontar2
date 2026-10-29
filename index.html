@@ -30,45 +30,69 @@ button:disabled{opacity:.45;cursor:default}
 #stage{position:fixed;inset:0;z-index:1;touch-action:none}
 #stage canvas{display:block;width:100%;height:100%}
 
-/* ---------- mapa de trilhas ---------- */
-#map{position:fixed;inset:0;z-index:10;overflow-y:auto;background:radial-gradient(ellipse at top,#1f2a39 0%,var(--asphalt) 60%);padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 40px)}
-.mtop{max-width:760px;margin:0 auto 18px;display:flex;align-items:center;gap:12px}
-.mtop img{width:44px;height:44px;border-radius:10px}
+/* ---------- tela inicial e trilhas ---------- */
+#map{position:fixed;inset:0;z-index:10;overflow-y:auto;overflow-x:hidden;background:var(--asphalt);-webkit-overflow-scrolling:touch}
+#map::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(60% 40% at 15% 0%,rgba(245,197,24,.12),transparent 70%),radial-gradient(50% 40% at 100% 20%,rgba(74,168,255,.12),transparent 70%),radial-gradient(60% 50% at 50% 110%,rgba(185,140,255,.12),transparent 70%)}
+.home,.tview{position:relative;max-width:820px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 40px)}
+.mtop{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.mtop img{width:46px;height:46px;border-radius:12px;object-fit:contain}
 .mtop h1{font-family:var(--display);font-size:26px;margin:0;line-height:1}
-.mtop h1 small{display:block;font-family:var(--body);font-size:15px;color:var(--mut);font-weight:500;margin-top:3px}
-.stars{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--asphalt2);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-family:var(--display);font-weight:700}
+.mtop h1 small{display:block;font-family:var(--body);font-size:15px;color:var(--mut);font-weight:500;margin-top:4px}
+.stars{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--asphalt2);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-family:var(--display);font-weight:700;flex:none}
 .stars svg{width:18px;height:18px}
-.tracks{max-width:760px;margin:0 auto;display:grid;gap:18px}
-.zero{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,rgba(54,211,153,.14),rgba(54,211,153,.03));border:1px solid rgba(54,211,153,.35);border-radius:16px;padding:14px 16px;text-align:left;width:100%}
-.zero .ic{width:48px;height:48px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--ok);color:#0d1a14;font-family:var(--display);font-weight:700;font-size:22px}
+.zero{display:flex;align-items:center;gap:14px;background:linear-gradient(100deg,rgba(54,211,153,.2),rgba(54,211,153,.04));border:1px solid rgba(54,211,153,.4);border-radius:18px;padding:14px 16px;text-align:left;width:100%;margin-bottom:22px}
+.zero .ic{width:50px;height:50px;flex:none;border-radius:14px;display:grid;place-items:center;background:var(--ok);color:#0d1a14;font-family:var(--display);font-weight:700;font-size:24px;transform:rotate(-6deg)}
 .zero b{font-family:var(--display);font-size:19px;display:block}
 .zero span{color:var(--mut);font-size:15px}
-.zero .st{margin-left:auto;flex:none}
-.track{background:var(--asphalt2);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.track header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
-.track header .tic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--c);color:#111;flex:none}
-.track header .tic svg{width:24px;height:24px}
-.track header b{font-family:var(--display);font-size:20px;display:block;line-height:1.1}
-.track header span{color:var(--mut);font-size:15px}
-.track header .prog{margin-left:auto;font-family:var(--display);color:var(--mut);font-size:15px;white-space:nowrap}
-.track.soon header .prog{background:rgba(255,255,255,.07);border-radius:12px;padding:3px 10px}
-.path{position:relative;padding:18px 0 10px}
-.node{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:110px;margin:0 auto 14px}
-.node .b{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:24px;background:var(--asphalt3);color:var(--mut);border:3px solid rgba(255,255,255,.08);box-shadow:0 6px 0 rgba(0,0,0,.35);position:relative}
-.node .b svg{width:22px;height:22px}
-.node.open .b{background:var(--c);color:#14181e;border-color:rgba(255,255,255,.35);animation:pulse 1.8s ease-in-out infinite}
+.zero .st{margin-left:auto;flex:none;display:flex}
+.zero .st svg{width:16px;height:16px}
+.sec{font-family:var(--display);font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:0 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tile{position:relative;overflow:hidden;text-align:left;border-radius:22px;padding:16px;min-height:200px;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 85%,#000) 0%,color-mix(in srgb,var(--c) 35%,#0d1117) 100%);color:#fff;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 0 color-mix(in srgb,var(--c) 30%,#05070a),0 18px 30px rgba(0,0,0,.35);transition:transform .15s}
+.tile:active{transform:translateY(4px);box-shadow:0 6px 0 color-mix(in srgb,var(--c) 30%,#05070a)}
+.tile .pat{position:absolute;inset:0;opacity:.18;background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(to bottom,#000,transparent 75%);-webkit-mask-image:linear-gradient(to bottom,#000,transparent 75%)}
+.tile .big{position:absolute;right:-18px;top:-10px;width:120px;height:120px;opacity:.22;transform:rotate(-12deg)}
+.tile .big svg{width:100%;height:100%}
+.tile .ic{position:absolute;left:16px;top:16px;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(0,0,0,.25);backdrop-filter:blur(4px)}
+.tile .ic svg{width:26px;height:26px}
+.tile .ring{position:absolute;right:14px;top:14px;width:48px;height:48px}
+.tile .ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--display);font-size:13px}
+.tile h3{font-family:var(--display);font-size:20px;line-height:1.1;margin:0 0 4px;position:relative}
+.tile p{margin:0;font-size:14px;color:rgba(255,255,255,.8);position:relative}
+.tile .meta{display:flex;align-items:center;gap:8px;margin-top:10px;position:relative;font-family:var(--display);font-size:14px}
+.tile .meta svg{width:14px;height:14px}
+.tile .meta i{font-style:normal;background:rgba(0,0,0,.28);border-radius:10px;padding:2px 8px}
+.mfoot{margin:26px 0 0;color:var(--mut);font-size:14px;text-align:center}
+.mfoot button{text-decoration:underline;color:var(--mut)}
+/* uma trilha aberta */
+.tview{padding-top:0}
+.tbar{position:sticky;top:0;z-index:3;margin:0 -16px 6px;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;gap:12px;background:linear-gradient(to bottom,var(--asphalt) 70%,transparent)}
+.tbar .ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--c);color:#14181e;flex:none}
+.tbar .ic svg{width:24px;height:24px}
+.tbar h2{font-family:var(--display);font-size:21px;margin:0;line-height:1.1}
+.tbar .pb{height:7px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:6px;overflow:hidden;width:160px}
+.tbar .pb i{display:block;height:100%;background:var(--c);border-radius:4px}
+.road{position:relative;padding:10px 0 30px}
+.road svg.line{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.lvl{position:relative;z-index:1;margin:22px auto 18px;width:max-content;max-width:90%;text-align:center;font-family:var(--display);font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--c);background:var(--asphalt2);border:1px solid color-mix(in srgb,var(--c) 45%,transparent);border-radius:20px;padding:5px 14px}
+.lvl small{display:block;font-family:var(--body);text-transform:none;letter-spacing:0;color:var(--mut);font-size:13px}
+.node{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;width:130px;margin:0 auto 34px}
+.node .b{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:26px;background:var(--asphalt3);color:var(--mut);border:3px solid rgba(255,255,255,.08);box-shadow:0 7px 0 rgba(0,0,0,.4)}
+.node .b svg{width:24px;height:24px}
+.node.rev .b{border-radius:22px;transform:rotate(45deg);width:66px;height:66px}
+.node.rev .b>*{transform:rotate(-45deg)}
+.node.open .b{background:var(--c);color:#14181e;border-color:rgba(255,255,255,.4);animation:pulse 1.8s ease-in-out infinite}
 .node.done .b{background:var(--c);color:#14181e;border-color:rgba(255,255,255,.2)}
 .node .nm{font-size:14px;color:var(--mut);text-align:center;line-height:1.15}
 .node.open .nm,.node.done .nm{color:var(--txt)}
 .node .ss{display:flex;gap:1px;height:14px}
 .node .ss svg{width:14px;height:14px}
-@keyframes pulse{0%,100%{box-shadow:0 6px 0 rgba(0,0,0,.35),0 0 0 0 color-mix(in srgb,var(--c) 55%,transparent)}50%{box-shadow:0 6px 0 rgba(0,0,0,.35),0 0 0 12px transparent}}
+.node.open::after{content:"Começar";position:absolute;top:-30px;background:#fff;color:#14181e;font-family:var(--display);font-weight:700;font-size:13px;border-radius:8px;padding:3px 9px;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.deco{position:absolute;z-index:0;opacity:.07;color:var(--c);pointer-events:none}
+.deco svg{width:100%;height:100%}
+@keyframes pulse{0%,100%{box-shadow:0 7px 0 rgba(0,0,0,.4),0 0 0 0 color-mix(in srgb,var(--c) 55%,transparent)}50%{box-shadow:0 7px 0 rgba(0,0,0,.4),0 0 0 14px transparent}}
 @media (prefers-reduced-motion: reduce){.node.open .b{animation:none}}
-.soonrow{display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px 16px}
-.soonrow i{font-style:normal;font-size:14px;color:var(--mut);background:rgba(255,255,255,.05);border:1px dashed var(--line);border-radius:8px;padding:4px 9px}
-.more{text-align:center;color:var(--mut);font-size:14px;padding:0 16px 16px}
-.mfoot{max-width:760px;margin:22px auto 0;color:var(--mut);font-size:14px;text-align:center}
-.mfoot button{text-decoration:underline;color:var(--mut)}
+@media (max-width:360px){.grid{grid-template-columns:1fr}}
 
 /* ---------- jogando ---------- */
 #hud{position:fixed;left:0;right:0;top:0;z-index:5;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 10px;display:none;align-items:center;gap:10px;background:linear-gradient(to bottom,rgba(20,26,34,.95),rgba(20,26,34,0));pointer-events:none}
@@ -150,15 +174,7 @@ button:disabled{opacity:.45;cursor:default}
 <div id="arMsg"></div>
 
 <!-- mapa -->
-<section id="map" aria-label="Mapa de trilhas">
-  <div class="mtop">
-    <img src="logo.png" alt="">
-    <h1>DesmontAR 2.0<small>Escolha uma trilha e avance fase por fase</small></h1>
-    <div class="stars" title="Estrelas"><svg viewBox="0 0 24 24"><path fill="#f5c518" d="M12 2l3 6.5 7 .8-5.2 4.8 1.5 7L12 17.6 5.7 21.1l1.5-7L2 9.3l7-.8z"/></svg><span id="starTotal">0</span></div>
-  </div>
-  <div class="tracks" id="tracks"></div>
-  <p class="mfoot">Protótipo · as fases marcadas com cadeado chegam nas próximas versões · <button id="resetBtn">apagar meu progresso</button></p>
-</section>
+<section id="map" aria-label="Trilhas"></section>
 
 <!-- jogando -->
 <div id="hud">

@@ -523,22 +523,64 @@ const isOpen=(t,i)=>i===0||!!P.done[t+(i)];
 const starSVG=(on,cls='')=>`<svg class="${cls}" viewBox="0 0 24 24"><path fill="${on?'#f5c518':'rgba(255,255,255,.16)'}" d="M12 2l3 6.5 7 .8-5.2 4.8 1.5 7L12 17.6 5.7 21.1l1.5-7L2 9.3l7-.8z"/></svg>`;
 const lockSVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>';
 
-/* ---------- mapa ---------- */
-const ZZ=[0,-64,-96,-64,0,64,96,64,0,-64];
-function drawMap(){let total=0;Object.values(P.done).forEach(v=>total+=v);$('#starTotal').textContent=total;
-  const z=P.done.zero;
-  let h=`<button class="zero" data-go="zero"><div class="ic">0</div><div><b>Fase 0 · Como a RA funciona</b><span>Marcador, escala e rastreamento. Comece por aqui!</span></div><div class="st">${z?[1,2,3].map(i=>starSVG(i<=z)).join(''):''}</div></button>`;
-  for(const t of TRACKS){const done=t.ph.filter((_,i)=>P.done[t.id+(i+1)]).length;
-    h+=`<section class="track ${t.ready?'':'soon'}" style="--c:${t.c}"><header><div class="tic">${ICON[t.id]}</div><div><b>${t.name}</b><span>${t.desc}</span></div><div class="prog">${t.ready?`${done}/${t.ph.length}`:'Em breve'}</div></header>`;
-    if(!t.ready){h+=`<div class="soonrow">${t.ph.map((n,i)=>`<i>${ROMAN[i]} · ${n}</i>`).join('')}</div></section>`;continue;}
-    h+='<div class="path">';
-    t.ph.forEach((n,i)=>{const id=t.id+(i+1),ready=i<t.ready,st=P.done[id],open=ready&&isOpen(t.id,i);
-      const cls=st?'done':open?'open':'';const inner=!ready||!open?lockSVG:st?'✓':ROMAN[i];
-      h+=`<button class="node ${cls}" style="transform:translateX(${ZZ[i]}px)" ${open?`data-go="${id}"`:'disabled'} aria-label="Fase ${ROMAN[i]}: ${n}${ready?'':' (em breve)'}"><div class="b">${inner}</div><div class="ss">${st?[1,2,3].map(k=>starSVG(k<=st)).join(''):''}</div><div class="nm">${ROMAN[i]} · ${n}${ready?'':'<br><small>em breve</small>'}</div></button>`;});
-    h+='</div></section>';}
-  $('#tracks').innerHTML=h;
-  $('#tracks').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>openPhase(b.dataset.go));}
-$('#resetBtn').onclick=()=>{P={done:{}};save();drawMap();toast('Progresso apagado.');};
+/* ---------- sequência de cada trilha: fases + revisões ---------- */
+const LV=[['Básico','fases I a III',1,3],['Intermediário','fases IV a VI',4,6],['Avançado','fases VII a IX',7,9],['Desafio','fase X',10,10]];
+function nodesOf(t){const out=[];LV.forEach(([nm,sub,a,b],li)=>{out.push({lvl:li,nm,sub});for(let n=a;n<=b;n++)out.push({id:t.id+n,n,ready:n<=t.ready,name:t.ph[n-1]});
+  if(li<3)out.push({id:t.id+'R'+(li+1),rev:1,range:[a,b],ready:b<=t.ready,name:`Revisão ${ROMAN[a-1]} a ${ROMAN[b-1]}`});
+  else out.push({id:t.id+'R4',rev:1,final:1,range:[1,10],ready:t.ready>=10,name:'Desafio final'});});return out;}
+const seqOf=t=>nodesOf(t).filter(x=>x.id);
+function nodeOpen(t,id){const s=seqOf(t);const i=s.findIndex(x=>x.id===id);if(i<0||!s[i].ready)return false;return i===0||!!P.done[id]||!!P.done[s[i-1].id];}
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+function prepReview(id){const t=TRACKS.find(x=>id.startsWith(x.id));const node=seqOf(t).find(x=>x.id===id);if(!node)return;
+  const qs=[],learn=[];for(let n=node.range[0];n<=node.range[1];n++){const ph=PH[t.id+n];if(!ph)continue;ph.steps.forEach(s=>{if(s.k==='choose')qs.push(Object.assign({},s,{say:`<b>Da fase ${ROMAN[n-1]}:</b> ${s.say}`}));});learn.push(...ph.learned);}
+  const pick=shuffle(qs).slice(0,node.final?8:6).map(s=>Object.assign({},s,{after:null,hint:node.final?null:s.hint}));
+  const g=['ar','al','lu','gi'][Math.floor(Math.random()*4)];
+  PH[id]={track:t.id,rev:1,final:node.final,title:node.name,build:PH[t.id+node.range[1]].build,
+    steps:[{k:'info',g,say:node.final?`<b>Desafio final!</b> ${pick.length} perguntas de toda a trilha, misturadas e <b>sem dicas</b>.`:`Hora de revisar! São ${pick.length} perguntas das fases ${ROMAN[node.range[0]-1]} a ${ROMAN[node.range[1]-1]}, misturadas.`,
+      task:node.final?'Responda com calma: cada erro custa estrela.':'Se errar, a explicação aparece na hora.'},...pick],
+    learned:shuffle(learn).slice(0,4)};}
+
+/* ---------- tela inicial ---------- */
+let VIEW='home';
+const totalStars=()=>Object.values(P.done).reduce((a,v)=>a+v,0);
+function ring(p,c){const r=20,L=2*PI*r;return `<svg viewBox="0 0 48 48" style="width:100%;height:100%;display:block"><circle cx="24" cy="24" r="${r}" fill="rgba(0,0,0,.25)" stroke="rgba(255,255,255,.18)" stroke-width="5"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="${L*p} ${L}" transform="rotate(-90 24 24)"/></svg>`;}
+function homeHTML(){const z=P.done.zero;let h=`<div class="home"><div class="mtop"><img src="logo.png" alt="" onerror="this.style.display='none'"><h1>DesmontAR 2.0<small>Aprenda montando, em realidade aumentada</small></h1><div class="stars">${starSVG(1)}<span>${totalStars()}</span></div></div>
+  <button class="zero" data-go="zero"><div class="ic">0</div><div><b>Como a RA funciona</b><span>Marcador, escala e rastreamento. Comece por aqui!</span></div><div class="st">${z?[1,2,3].map(i=>starSVG(i<=z)).join(''):''}</div></button>
+  <p class="sec">Escolha sua trilha</p><div class="grid">`;
+  for(const t of TRACKS){const seq=seqOf(t);const done=seq.filter(x=>P.done[x.id]).length;const st=seq.reduce((a,x)=>a+(P.done[x.id]||0),0);const ph=t.ph.filter((_,i)=>P.done[t.id+(i+1)]).length;
+    h+=`<button class="tile" style="--c:${t.c}" data-track="${t.id}"><div class="pat"></div><div class="big">${ICON[t.id]}</div><div class="ic">${ICON[t.id]}</div><div class="ring">${ring(done/seq.length)}<b>${Math.round(done/seq.length*100)}%</b></div>
+      <h3>${t.name}</h3><p>${t.desc}</p><div class="meta"><i>${ph}/${t.ph.length} fases</i><i>${starSVG(1)} ${st}</i></div></button>`;}
+  return h+`</div><p class="mfoot">${TRACKS.filter(t=>t.ready<10).map(t=>t.short).join(' e ')}: fases IV a X em breve · <button id="resetBtn">apagar meu progresso</button></p></div>`;}
+
+/* ---------- uma trilha aberta ---------- */
+const ZZ=[0,-70,-104,-70,0,70,104,70];
+const backSVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+const trophySVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 01-10 0zM7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4M12 14v4M8 21h8l-1-3H9z"/></svg>';
+const reviewSVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3M18 3v4h-4M6 21v-4h4"/></svg>';
+function trackHTML(t){const seq=seqOf(t);const done=seq.filter(x=>P.done[x.id]).length;
+  let h=`<div class="tview" style="--c:${t.c}"><div class="tbar"><button class="iconbtn" id="tBack" aria-label="Voltar">${backSVG}</button><div class="ic">${ICON[t.id]}</div><div style="min-width:0"><h2>${t.name}</h2><div class="pb"><i style="width:${done/seq.length*100}%"></i></div></div><div class="stars">${starSVG(1)}<span>${seq.reduce((a,x)=>a+(P.done[x.id]||0),0)}</span></div></div><div class="road"><svg class="line"></svg>`;
+  let k=0;const nodes=nodesOf(t);
+  for(let d=0;d<6;d++)h+=`<div class="deco" style="width:${90+(d%3)*30}px;height:${90+(d%3)*30}px;top:${120+d*260}px;${d%2?'left':'right'}:${-20+(d%3)*10}px;transform:rotate(${d%2?-14:12}deg)">${ICON[t.id]}</div>`;
+  for(const x of nodes){if(x.lvl!=null){h+=`<div class="lvl">${x.nm}<small>${x.sub}</small></div>`;continue;}
+    const st=P.done[x.id],open=nodeOpen(t,x.id);const cls=(x.rev?'rev ':'')+(st?'done':open?'open':'');
+    const inner=!x.ready||!open?lockSVG:x.rev?(x.final?trophySVG:reviewSVG):st?'✓':ROMAN[x.n-1];
+    h+=`<button class="node ${cls}" style="transform:translateX(${ZZ[k++%8]}px)" ${open?`data-go="${x.id}"`:'disabled'} aria-label="${x.rev?x.name:'Fase '+ROMAN[x.n-1]+': '+x.name}${x.ready?'':' (em breve)'}">
+      <div class="b"><span>${inner}</span></div><div class="ss">${st?[1,2,3].map(s=>starSVG(s<=st)).join(''):''}</div><div class="nm">${x.rev?x.name:ROMAN[x.n-1]+' · '+x.name}${x.ready?'':'<br><small>em breve</small>'}</div></button>`;}
+  return h+'</div></div>';}
+function drawRoad(){const road=$('#map .road');if(!road)return;const svg=road.querySelector('svg.line');const r0=road.getBoundingClientRect();
+  const pts=[...road.querySelectorAll('.node')].map(n=>{const r=n.querySelector('.b').getBoundingClientRect();return [r.left+r.width/2-r0.left,r.top+r.height/2-r0.top,n.classList.contains('done')];});
+  if(pts.length<2)return;const seg=(a,b)=>{const dy=(b[1]-a[1])/2;return `C ${a[0]} ${a[1]+dy} ${b[0]} ${b[1]-dy} ${b[0]} ${b[1]}`;};
+  let d=`M ${pts[0][0]} ${pts[0][1]}`,dd=d;let last=0;pts.forEach((p,i)=>{if(i){d+=' '+seg(pts[i-1],p);}if(p[2])last=i;});
+  for(let i=1;i<=Math.min(last+1,pts.length-1);i++)if(pts[i-1][2])dd+=' '+seg(pts[i-1],pts[i]);
+  svg.innerHTML=`<path d="${d}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="22" stroke-linecap="round"/><path d="${d}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round"/>`+(last||pts[0][2]?`<path d="${dd}" fill="none" stroke="var(--c)" stroke-opacity=".75" stroke-width="10" stroke-linecap="round"/>`:'');}
+function drawMap(){const m=$('#map');m.innerHTML=VIEW==='home'?homeHTML():trackHTML(TRACKS.find(t=>t.id===VIEW));
+  m.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>openPhase(b.dataset.go));
+  m.querySelectorAll('[data-track]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.track;drawMap();m.scrollTop=0;});
+  const tb=$('#tBack');if(tb)tb.onclick=()=>{VIEW='home';drawMap();m.scrollTop=0;};
+  const rb=$('#resetBtn');if(rb)rb.onclick=()=>{P={done:{}};save();drawMap();toast('Progresso apagado.');};
+  if(VIEW!=='home')requestAnimationFrame(()=>{drawRoad();const o=m.querySelector('.node.open');if(o)o.scrollIntoView({block:'center'});});}
+addEventListener('resize',()=>{if(VIEW!=='home'&&$('#map').style.display!=='none')drawRoad();});
+function setOrd(){const s=G.ph.steps[G.step];G.ord=s.opts?shuffle(s.opts.map((_,i)=>i)):null;}
 
 /* ---------- fases ---------- */
 const NAMES={mobo:'a placa-mãe',cpu:'o processador',ram:'a memória RAM',gpu:'a placa de vídeo',ssd:'o SSD',psu:'a fonte',socket:'o soquete do processador',
@@ -1106,6 +1148,82 @@ rd10:{track:'rd',n:10,title:'Rede da escola',
 });
 
 
+/* ---------- 4ª alternativa de cada pergunta: errada, mas plausível ---------- */
+const EXTRA={
+'zero:1':['Para a câmera medir a luz da sala e ajustar o brilho dos objetos','O brilho é ajustado pela própria câmera. O marcador serve para achar os 4 cantos e ler o desenho.'],
+'zero:3':['Para saber a que distância a mesa está do chão','A altura da mesa não importa. O tamanho conhecido serve para desenhar os objetos na escala certa.'],
+'zero:4':['O objeto fica parado no último lugar em que a câmera viu o marcador','Alguns apps tentam isso por um instante, mas aqui, sem o marcador, a RA não sabe onde desenhar e o objeto some.'],
+'hw2:0':['Processador com soquete S5 ou S6, porque os mais novos sempre servem','Soquete diferente não encaixa, mesmo sendo mais novo. Tem que ser exatamente S5.'],
+'hw2:2':['Encaixar primeiro um canto e depois empurrar os outros três','Encaixar torto entorta os contatos. Com os triângulos alinhados, ele desce reto e cai no lugar.'],
+'hw2:3':['Espalhar com o dedo uma camada fina antes de colocar o processador','A gordura do dedo e o pó atrapalham. Basta uma gota: o cooler espalha sozinho.'],
+'hw3:0':['O pente com mais memória, de qualquer geração','A quantidade de memória não importa se a geração estiver errada: só DDR5 encaixa nessa placa.'],
+'hw3:3':['Para o PC reconhecer os dois pentes, porque no mesmo canal só um funciona','No mesmo canal os dois funcionam, só que se revezam. Em canais diferentes eles trabalham juntos e a memória fica mais rápida.'],
+'hw3:4':['A luz colorida do pente acende assim que ele encaixa','A luz só acende com o PC ligado. Antes disso, o sinal é a trava das pontas fechando com um clique.'],
+'rb2:0':['É o lado que vai no GND, porque o negativo precisa de mais metal','O GND recebe a perna menor. A perna maior é o positivo (+).'],
+'rb2:1':['10 Ω, porque resistor pequeno deixa o LED mais forte','10 Ω segura pouco: passa corrente demais e o LED pode queimar. 220 Ω é o valor seguro.'],
+'rb3:0':['Verde → amarelo → vermelho → amarelo → verde','No Brasil o amarelo aparece só antes do vermelho. Depois do vermelho volta direto o verde.'],
+'rb3:1':['Os três ficam acesos pelo mesmo tempo','Verde e vermelho duram mais. O amarelo é só um aviso, por isso dura pouco.'],
+'rb3:4':['O amarelo fica aceso o tempo todo','Sem o fio, nenhuma corrente chega no LED amarelo: ele fica apagado, não aceso.'],
+'el1:0':['A lâmpada está ligada ao contrário','Lâmpada comum funciona nos dois sentidos. O problema é o fio solto, que deixa o caminho aberto.'],
+'el1:2':['Sai do − da pilha, vai até a lâmpada e para lá','A corrente não para na lâmpada: ela passa e volta para a pilha, fechando o circuito.'],
+'el1:3':['A lâmpada acende, mas o barbante esquenta','O barbante nem deixa a corrente passar, então nada esquenta: a lâmpada apaga.'],
+'el2:0':['Mostrar quais furos estão quebrados','As linhas não marcam defeito: vermelha é o + e azul é o −, para levar energia à placa toda.'],
+'el2:2':['Separar os componentes de 5 V dos de 3,3 V','A tensão é você quem escolhe na ligação. O canal existe para encaixar chips com uma fileira de pernas de cada lado.'],
+'el2:3':['Ele acende, mas pisca sem parar','Na mesma coluna as pernas ficam em curto: a corrente desvia e o LED fica apagado.'],
+'el3:0':['Para aumentar a tensão que chega no LED','Ele faz o contrário: segura a corrente. Nenhum resistor aumenta a tensão.'],
+'el3:2':['10 Ω, porque o vermelho vale 2 zeros a menos','O vermelho, na 3ª faixa, acrescenta 2 zeros: 10 com 2 zeros = 1.000 Ω.'],
+'el3:3':['Ele acende mais fraco, porque falta o resistor','Sem resistor ele acende forte demais, esquenta e queima.'],
+'el3:4':['Mostra que o resistor aguenta mais calor','A potência que ele aguenta vem do tamanho. A faixa dourada é a margem de erro (5%).'],
+'el4:1':['As lâmpadas em série são de outro modelo','As lâmpadas são iguais. O que muda é que os 9 V se dividem entre as duas.'],
+'el4:2':['Só a queimada apaga, porque cada uma tem seu fio','Isso acontece no paralelo. Em série o caminho é um só, então as duas apagam.'],
+'el4:3':['Em série, para economizar fio','Em série, uma lâmpada queimada apagaria a casa toda. Por isso a instalação é em paralelo.'],
+'el5:1':['0,2 A, ou seja, 200 mA','Confira as casas decimais: 9 ÷ 450 = 0,02 A = 20 mA.'],
+'el5:2':['330 Ω, porque é o valor de loja mais comum','330 Ω funciona, mas a conta pedida dá 3 ÷ 0,015 = 200 Ω.'],
+'el5:3':['Sobe um pouco, porque o resistor esquenta','Mais resistência sempre segura mais a corrente: 9 ÷ 900 = 10 mA, metade de antes.'],
+'el5:4':['Ohm (Ω)','Ohm mede resistência. A corrente se mede em ampères.'],
+'el6:1':['A preta no + e a vermelha encostada na mesa','Com uma ponta fora do circuito, não há o que medir. Vermelha no + e preta no −.'],
+'el6:2':['Boa, porque toda bateria de 9 V marca menos do que 9 V','Nova, ela marca uns 9,5 V. Com 6,8 V está fraca, perto de acabar.'],
+'el6:4':['Em paralelo, igual a quando se mede tensão','Tensão é em paralelo. Para corrente, a corrente precisa atravessar o aparelho: em série.'],
+'el7:1':['Transforma a corrente da tomada em corrente de pilha','Quem faz isso é a fonte. O capacitor guarda um pouco de energia e solta logo depois.'],
+'el7:3':['O LED esfria devagar e continua brilhando','LED não brilha por calor. A energia que manteve o LED aceso veio do capacitor.'],
+'el7:4':['Só os capacitores grandes têm lado certo','Todo eletrolítico tem polaridade, do menor ao maior. A faixa − marca a perna negativa.'],
+'el8:1':['O motor gira ao contrário se for ligado direto','O sentido não muda. O problema é a corrente: o motor puxa muito mais do que o pino aguenta.'],
+'el8:2':['Um capacitor que guarda o sinal do Arduino','Ele não guarda nada: é um interruptor que um sinal fraco liga e desliga.'],
+'el8:4':['Gira devagar, só com a energia da bateria','Sem sinal na base, o transistor corta o caminho e nenhuma corrente chega no motor.'],
+'el9:3':['A tensão da bateria dobra e queima os LEDs','A tensão não dobra. O perigo é a corrente enorme, que esquenta fios e fonte.'],
+'el10:0':['O potenciômetro, quando gira até o fim','O potenciômetro só muda o brilho. Quem abre e fecha o caminho é o botão.'],
+'el10:1':['300 Ω exatos, mesmo que a loja não venda','300 Ω não é um valor de loja. Usa-se o mais perto e um pouco acima: 330 Ω.'],
+'el10:2':['O resistor em paralelo com o LED, para dividir a corrente','Em paralelo o resistor não protege o LED. Tudo fica em série, num caminho só.'],
+'rd2:0':['6 fios: 3 para enviar e 3 para receber','São 8 fios, em 4 pares trançados.'],
+'rd2:1':['Para o cabo ficar mais forte e não quebrar','A trança não é para resistência: ela cancela a interferência entre os fios.'],
+'rd2:4':['Funciona, desde que a capa seja da mesma cor','A cor da capa não importa. As duas pontas precisam seguir o mesmo padrão de fios.'],
+'rd3:3':['Pelo modem, que também manda sinal de celular','O modem recebe a fibra. Quem cria o Wi-Fi para o celular é o roteador.'],
+'rd3:4':['O modem é para cabo e o roteador é para Wi-Fi','O roteador também tem portas de cabo. O modem traz a internet; o roteador divide e cria o Wi-Fi.'],
+'rd4:0':['O nome que aparece na lista de redes Wi-Fi','Esse é o nome da rede (SSID). O IP é o endereço de cada aparelho.'],
+'rd4:1':['O modem, que recebe os IPs da operadora','O modem traz a internet. Dentro de casa, quem distribui os IPs é o roteador (DHCP).'],
+'rd4:3':['O primeiro computador que foi ligado','O .1 fica reservado para o roteador, não para o primeiro aparelho.'],
+'rd5:1':['Muitas pessoas usando o celular perto do roteador','Muitas pessoas dividem a velocidade, mas o que bloqueia o sinal são paredes, metal, espelhos e micro-ondas.'],
+'rd5:2':['5 GHz alcança mais longe, mas é mais lenta','É o contrário: 5 GHz é rápida e alcança menos; 2,4 GHz alcança mais.'],
+'rd5:3':['Porque o calor do chão estraga o roteador','O chão não esquenta o roteador. No alto o sinal passa por cima dos móveis.'],
+'rd6:1':['Deixar a internet mais rápida para todos','O switch não aumenta a internet. Ele multiplica as portas da rede.'],
+'rd6:4':['O roteador é para Wi-Fi e o switch é para cabo','O roteador também tem cabo. A diferença é que ele liga a rede à internet; o switch só liga aparelhos na mesma rede.'],
+'rd7:0':['PC → modem → roteador → servidor do site','O roteador vem antes do modem, e entre o modem e o servidor há a internet.'],
+'rd7:2':['O modem, que traduz a fibra','O modem só traz a internet. Quem traduz nomes em IPs é o DNS.'],
+'rd7:3':['Num fluxo contínuo, como a água num cano','A rede corta tudo em pacotes pequenos, que podem ir por caminhos diferentes.'],
+'rd8:1':['Ligar para a operadora e pedir um técnico','Antes de chamar alguém, confira luzes e cabos: é o problema mais comum.'],
+'rd8:3':['No celular, que precisa ser formatado','Formatar é exagero. Reconectar ou reiniciar o roteador resolve na maioria das vezes.'],
+'rd8:4':['Ele troca a senha do Wi-Fi sozinho','A senha continua a mesma. Reiniciar só limpa a memória e refaz as conexões.'],
+'rd9:0':['Uma palavra difícil, como Paralelepipedo','Palavra única, mesmo difícil, está em dicionários usados por invasores. Frase longa com números e símbolos é mais segura.'],
+'rd9:1':['Fazer as visitas gastarem menos internet','A rede de visitantes não limita o uso: ela separa as visitas dos seus aparelhos.'],
+'rd9:2':['Esconde o nome da rede Wi-Fi','Esconder o nome é outra configuração. O firewall barra conexões suspeitas.'],
+'rd9:3':['Desligar o roteador toda noite','Desligar não protege o painel. O importante é trocar a senha de fábrica.'],
+'rd9:4':['WEP, porque é compatível com todos os aparelhos','O WEP é antigo e pode ser quebrado em minutos. Use WPA2 ou WPA3.'],
+'rd10:0':['Um roteador para cada PC','Um roteador só basta. Para ligar vários PCs por cabo, usa-se um switch.'],
+'rd10:2':['Uma rede só, com senha forte para todos','Senha forte ajuda, mas com todos na mesma rede os alunos enxergariam os computadores da secretaria.'],
+'rd10:4':['Com Wi-Fi comum, apontando o roteador para o prédio','O Wi-Fi comum não alcança bem 150 m com paredes no caminho. O certo é a fibra óptica.']};
+for(const [k,[t,fb]] of Object.entries(EXTRA)){const [id,i]=k.split(':');const s=PH[id]&&PH[id].steps[+i];if(s&&s.opts)s.opts.push({t,fb});}
+
+
 /* ---------- animações simples ---------- */
 const tweens=[];
 function tween(o,to,dur){const fr={x:o.position.x,y:o.position.y,z:o.position.z,ry:o.rotation.y};tweens.push({o,fr,to,t:0,dur:reduceMotion?.01:dur});}
@@ -1115,11 +1233,11 @@ function stepTweens(dt){for(let i=tweens.length-1;i>=0;i--){const w=tweens[i];w.
 /* ---------- estado da fase ---------- */
 let G=null;
 const panel=$('#panel');
-function openPhase(id){const ph=PH[id];if(!ph)return;idleSim=null;
+function openPhase(id){if(/R\d$/.test(id))prepReview(id);const ph=PH[id];if(!ph)return;idleSim=null;if(ph.track)VIEW=ph.track;
   bench.parent&&scene.remove(bench);bench=new THREE.Group();scene.add(bench);for(const k in R)delete R[k];tweens.length=0;
-  R.updaters=[];ph.build();bench.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.transparent&&o.material.opacity<.5)){o.castShadow=true;o.receiveShadow=true;}});G={id,ph,step:0,err:0,hints:0,fb:null,locked:false,prog:[],sim:null,hintOn:false,wrongShown:{}};
+  R.updaters=[];ph.build();bench.traverse(o=>{if(o.isMesh&&!(o.material&&o.material.transparent&&o.material.opacity<.5)){o.castShadow=true;o.receiveShadow=true;}});G={id,ph,step:0,err:0,hints:0,fb:null,locked:false,prog:[],sim:null,hintOn:false,wrongShown:{}};setOrd();
   const tr=TRACKS.find(t=>t.id===ph.track);const col=tr?tr.c:ph.c;document.body.style.setProperty('--c',col);
-  $('#hudTrack').textContent=tr?`${tr.short} · Fase ${ROMAN[ph.n-1]}`:'Fase 0';$('#hudTitle').textContent=ph.title;
+  $('#hudTrack').textContent=tr?(ph.rev?`${tr.short} · ${ph.final?'Desafio':'Revisão'}`:`${tr.short} · Fase ${ROMAN[ph.n-1]}`):'Fase 0';$('#hudTitle').textContent=ph.title;
   $('#map').style.display='none';$('#hud').style.display='flex';panel.style.display='block';$('#result').style.display='none';
   resetView();renderStep();}
 function backToMap(){if(CAM.on)arOff();G=null;$('#map').style.display='block';$('#hud').style.display='none';panel.style.display='none';$('#result').style.display='none';drawMap();}
@@ -1133,7 +1251,7 @@ function renderStep(){if(!G)return;dotsHud();const s=G.ph.steps[G.step];let h=sa
   if(G.fb){const body=G.fb[1].replace(/^Isso!\s*/,'').replace(/<b>/g,'<strong>').replace(/<\/b>/g,'</strong>');h+=`<div class="fb ${G.fb[0]}"><b>${G.fb[0]==='good'?'Isso!':'Ops!'}</b>${body}</div>`;}
   if(G.locked){h+=`<button class="cta" id="nextBtn">${G.step<G.ph.steps.length-1?'Continuar':'Concluir fase'}</button>`;}
   else if(s.k==='info')h+=`<button class="cta" id="nextBtn">Continuar</button>`;
-  else if(s.k==='choose')h+=`<div class="opts">${s.opts.map((o,i)=>`<button class="opt ${G.wrongShown[i]?'bad':''}" data-o="${i}">${o.t}${o.s?`<small>${o.s}</small>`:''}</button>`).join('')}</div>`;
+  else if(s.k==='choose')h+=`<div class="opts">${(G.ord||s.opts.map((_,i)=>i)).map(i=>{const o=s.opts[i];return `<button class="opt ${G.wrongShown[i]?'bad':''}" data-o="${i}">${o.t}${o.s?`<small>${o.s}</small>`:''}</button>`;}).join('')}</div>`;
   else if(s.k==='tap')h+=`<p class="tip">${CAM.on?'Toque na peça na tela. Arraste com um dedo para girar.':'Toque na peça na bancada. Arraste para girar e use dois dedos para dar zoom.'}</p>`;
   else if(s.k==='ar')h+=CAM.on?`<p class="tip">Procurando o marcador… A folha inteira precisa aparecer na tela.</p>`:`<button class="cta" id="arGo">Ligar a RA</button><button class="ghost" id="arSkip">Estou sem o marcador agora</button>`;
   else if(s.k==='code'){const pal=s.palette;const byId=Object.fromEntries(pal.map(b=>[b.id,b]));
@@ -1150,7 +1268,7 @@ function renderStep(){if(!G)return;dotsHud();const s=G.ph.steps[G.step];let h=sa
   setGlow(s.k==='tap'&&!G.locked?(s.glow||[]):[]);viewOffset(true);}
 function good(t){G.fb=['good',t];G.locked=true;const s=G.ph.steps[G.step];if(s.after)s.after();renderStep();}
 function bad(t){G.err++;G.fb=['bad',t];renderStep();}
-function next(){if(G.step<G.ph.steps.length-1){G.step++;G.fb=null;G.locked=false;G.prog=[];G.hintOn=false;G.wrongShown={};renderStep();}else finish();}
+function next(){if(G.step<G.ph.steps.length-1){G.step++;G.fb=null;G.locked=false;G.prog=[];G.hintOn=false;G.wrongShown={};setOrd();renderStep();}else finish();}
 function choose(i){const s=G.ph.steps[G.step];if(G.locked)return;const o=s.opts[i];if(o.ok)good(o.fb);else{G.wrongShown[i]=1;bad(o.fb);}}
 function tapped(id){if(!G||G.locked)return;const s=G.ph.steps[G.step];if(s.k!=='tap')return;
   if([].concat(s.ok).includes(id)){good(s.fb);return;}
@@ -1173,10 +1291,10 @@ function lightsOff(){if(R.led)R.led.userData.set(false);if(R.leds)for(const k in
 
 /* ---------- fim da fase ---------- */
 function finish(){const tot=G.err+G.hints;const st=tot===0?3:tot<=2?2:1;const id=G.id;P.done[id]=Math.max(P.done[id]||0,st);save();
-  const ph=G.ph;const tr=TRACKS.find(t=>t.id===ph.track);let nextId=null;if(tr&&ph.n<tr.ready)nextId=tr.id+(ph.n+1);
+  const ph=G.ph;const tr=TRACKS.find(t=>t.id===ph.track);let nextId=null,nextName='';if(tr){const sq=seqOf(tr);const ix=sq.findIndex(x=>x.id===id);const nx=sq[ix+1];if(nx&&nx.ready){nextId=nx.id;nextName=nx.rev?nx.name:`${ROMAN[nx.n-1]} · ${nx.name}`;}}
   $('#rcard').innerHTML=`<div class="big">${[1,2,3].map(i=>starSVG(i<=st,'pop')).join('')}</div><h2>Fase concluída!</h2><p>${st===3?'Perfeito, sem erros!':st===2?`${tot} ${tot===1?'erro ou dica':'erros ou dicas'}. Refaça para ganhar 3 estrelas.`:'Você conseguiu! Refaça para ganhar mais estrelas.'}</p>
     <div class="learn"><b>O que você aprendeu</b><ul>${ph.learned.map(x=>`<li>${x}</li>`).join('')}</ul></div>
-    ${nextId?`<button class="cta" id="rNext">Próxima fase: ${ROMAN[ph.n]} · ${tr.ph[ph.n]}</button>`:''}<button class="${nextId?'ghost':'cta'}" id="rMap">Voltar ao mapa</button><button class="ghost" id="rAgain">Refazer fase</button>`;
+    ${nextId?`<button class="cta" id="rNext">Continuar: ${nextName}</button>`:''}<button class="${nextId?'ghost':'cta'}" id="rMap">Voltar ao mapa</button><button class="ghost" id="rAgain">Refazer fase</button>`;
   $('#rcard').querySelectorAll('.big svg').forEach((s,i)=>s.style.animationDelay=(i*.15)+'s');
   $('#result').style.display='grid';const rn=$('#rNext');if(rn)rn.onclick=()=>openPhase(nextId);$('#rMap').onclick=backToMap;$('#rAgain').onclick=()=>openPhase(id);}
 
