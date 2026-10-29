@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DesmontAR 2.0 — Trilhas</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icone.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --asphalt:#141a22; --asphalt2:#1c2430; --asphalt3:#253041; --panel:rgba(20,26,34,.94);
+  --line:rgba(214,226,240,.14); --txt:#e9eef5; --mut:#93a1b3;
+  --board:#f5c518; --wet:#4aa8ff; --ok:#36d399; --bad:#ff4f5e;
+  --hw:#f5c518; --rb:#4aa8ff; --el:#ff8a3d; --rd:#b98cff;
+  --display:"Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --body:"Barlow Semi Condensed", "Segoe UI", system-ui, sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--asphalt);color:var(--txt);font-family:var(--body);font-size:17px;line-height:1.4;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:2px solid var(--board);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+
+#video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;display:none;z-index:0}
+#stage{position:fixed;inset:0;z-index:1;touch-action:none}
+#stage canvas{display:block;width:100%;height:100%}
+
+/* ---------- mapa de trilhas ---------- */
+#map{position:fixed;inset:0;z-index:10;overflow-y:auto;background:radial-gradient(ellipse at top,#1f2a39 0%,var(--asphalt) 60%);padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 40px)}
+.mtop{max-width:760px;margin:0 auto 18px;display:flex;align-items:center;gap:12px}
+.mtop img{width:44px;height:44px;border-radius:10px}
+.mtop h1{font-family:var(--display);font-size:26px;margin:0;line-height:1}
+.mtop h1 small{display:block;font-family:var(--body);font-size:15px;color:var(--mut);font-weight:500;margin-top:3px}
+.stars{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--asphalt2);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-family:var(--display);font-weight:700}
+.stars svg{width:18px;height:18px}
+.tracks{max-width:760px;margin:0 auto;display:grid;gap:18px}
+.zero{display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,rgba(54,211,153,.14),rgba(54,211,153,.03));border:1px solid rgba(54,211,153,.35);border-radius:16px;padding:14px 16px;text-align:left;width:100%}
+.zero .ic{width:48px;height:48px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--ok);color:#0d1a14;font-family:var(--display);font-weight:700;font-size:22px}
+.zero b{font-family:var(--display);font-size:19px;display:block}
+.zero span{color:var(--mut);font-size:15px}
+.zero .st{margin-left:auto;flex:none}
+.track{background:var(--asphalt2);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.track header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.track header .tic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--c);color:#111;flex:none}
+.track header .tic svg{width:24px;height:24px}
+.track header b{font-family:var(--display);font-size:20px;display:block;line-height:1.1}
+.track header span{color:var(--mut);font-size:15px}
+.track header .prog{margin-left:auto;font-family:var(--display);color:var(--mut);font-size:15px;white-space:nowrap}
+.track.soon header .prog{background:rgba(255,255,255,.07);border-radius:12px;padding:3px 10px}
+.path{position:relative;padding:18px 0 10px}
+.node{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:110px;margin:0 auto 14px}
+.node .b{width:66px;height:66px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:24px;background:var(--asphalt3);color:var(--mut);border:3px solid rgba(255,255,255,.08);box-shadow:0 6px 0 rgba(0,0,0,.35);position:relative}
+.node .b svg{width:22px;height:22px}
+.node.open .b{background:var(--c);color:#14181e;border-color:rgba(255,255,255,.35);animation:pulse 1.8s ease-in-out infinite}
+.node.done .b{background:var(--c);color:#14181e;border-color:rgba(255,255,255,.2)}
+.node .nm{font-size:14px;color:var(--mut);text-align:center;line-height:1.15}
+.node.open .nm,.node.done .nm{color:var(--txt)}
+.node .ss{display:flex;gap:1px;height:14px}
+.node .ss svg{width:14px;height:14px}
+@keyframes pulse{0%,100%{box-shadow:0 6px 0 rgba(0,0,0,.35),0 0 0 0 color-mix(in srgb,var(--c) 55%,transparent)}50%{box-shadow:0 6px 0 rgba(0,0,0,.35),0 0 0 12px transparent}}
+@media (prefers-reduced-motion: reduce){.node.open .b{animation:none}}
+.soonrow{display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px 16px}
+.soonrow i{font-style:normal;font-size:14px;color:var(--mut);background:rgba(255,255,255,.05);border:1px dashed var(--line);border-radius:8px;padding:4px 9px}
+.more{text-align:center;color:var(--mut);font-size:14px;padding:0 16px 16px}
+.mfoot{max-width:760px;margin:22px auto 0;color:var(--mut);font-size:14px;text-align:center}
+.mfoot button{text-decoration:underline;color:var(--mut)}
+
+/* ---------- jogando ---------- */
+#hud{position:fixed;left:0;right:0;top:0;z-index:5;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 10px;display:none;align-items:center;gap:10px;background:linear-gradient(to bottom,rgba(20,26,34,.95),rgba(20,26,34,0));pointer-events:none}
+#hud>*{pointer-events:auto}
+.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(20,26,34,.85);border:1px solid var(--line);flex:none}
+.iconbtn svg{width:20px;height:20px}
+.ttl{min-width:0}
+.ttl small{display:block;color:var(--c,var(--board));font-size:14px;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.ttl b{font-family:var(--display);font-size:19px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.steps{flex:1;display:flex;gap:4px;max-width:260px;margin-left:auto}
+.steps i{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.15)}
+.steps i.on{background:var(--c,var(--board))}
+.steps i.done{background:var(--ok)}
+.arbtn{border:1px solid var(--line);background:rgba(20,26,34,.85);border-radius:20px;padding:7px 12px;font-size:15px;font-weight:600;display:flex;gap:6px;align-items:center;flex:none}
+.arbtn svg{width:18px;height:18px}
+.arbtn.on{background:var(--ok);color:#0d1a14;border-color:transparent}
+
+#panel{position:fixed;z-index:4;right:16px;top:74px;width:380px;max-height:calc(100% - 96px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px 18px;display:none;backdrop-filter:blur(8px)}
+.say{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}
+.av{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:16px;color:#14181e}
+.say p{margin:0;background:var(--asphalt2);border:1px solid var(--line);border-radius:4px 14px 14px 14px;padding:9px 12px;color:#dfe6ef}
+.say p b{color:#fff}
+.say small{display:block;color:var(--mut);font-size:13px;margin-bottom:2px}
+.task{font-family:var(--display);font-weight:600;font-size:18px;margin:4px 0 12px;display:flex;gap:8px;align-items:flex-start}
+.task::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--c,var(--board));flex:none;margin-top:7px}
+.opts{display:grid;gap:8px;margin-bottom:12px}
+.opt{display:block;width:100%;text-align:left;background:var(--asphalt2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;border-bottom-width:3px}
+.opt small{display:block;color:var(--mut);font-size:14px}
+.opt.bad{border-color:var(--bad);background:rgba(255,79,94,.1)}
+.opt.good{border-color:var(--ok);background:rgba(54,211,153,.12)}
+.fb{border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:16px}
+.fb.good{background:rgba(54,211,153,.12);border:1px solid rgba(54,211,153,.4)}
+.fb.bad{background:rgba(255,79,94,.1);border:1px solid rgba(255,79,94,.4)}
+.fb b{display:block;font-family:var(--display)}
+.cta{display:block;width:100%;background:var(--c,var(--board));color:#14181e;font-family:var(--display);font-weight:700;font-size:18px;border-radius:12px;padding:12px;border-bottom:4px solid rgba(0,0,0,.25);margin-top:4px}
+.ghost{display:block;width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;color:var(--mut)}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+.tip{color:var(--mut);font-size:15px;margin:0 0 10px}
+/* blocos de código */
+.code{background:#0f141b;border:1px solid var(--line);border-radius:12px;padding:10px;min-height:120px;margin-bottom:10px}
+.code .ln{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.code .ln em{font-style:normal;color:var(--mut);font-size:13px;width:16px;text-align:right}
+.code .empty{color:var(--mut);font-size:15px;padding:8px}
+.blk{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:7px 11px;font-weight:600;font-size:15px;color:#14181e;border-bottom:3px solid rgba(0,0,0,.25)}
+.blk.on{background:#ffd34d}.blk.off{background:#9fb1c6}.blk.wait{background:#7fd1ff}.blk.r{background:#ff7a85}.blk.y{background:#ffd34d}.blk.g{background:#5ee0a8}
+.blk .x{margin-left:4px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.18);display:grid;place-items:center;font-size:13px;line-height:1}
+.palette{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.loop{font-size:13px;color:var(--mut);margin:-4px 0 10px}
+
+#toast{position:fixed;z-index:20;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#222c38;border:1px solid var(--line);padding:9px 16px;border-radius:10px;display:none;max-width:90%;text-align:center}
+#arMsg{position:fixed;z-index:3;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);background:rgba(20,26,34,.85);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:15px;display:none;white-space:nowrap}
+
+/* resultado */
+#result{position:fixed;inset:0;z-index:15;background:rgba(10,14,20,.8);display:none;place-items:center;padding:20px;backdrop-filter:blur(6px)}
+.rcard{background:var(--asphalt2);border:1px solid var(--line);border-radius:20px;padding:24px 22px;width:min(380px,100%);text-align:center}
+.rcard h2{font-family:var(--display);font-size:28px;margin:6px 0 4px}
+.rcard p{color:var(--mut);margin:0 0 14px}
+.big{display:flex;justify-content:center;gap:8px;margin:6px 0 10px}
+.big svg{width:54px;height:54px}
+.big svg.pop{animation:pop .45s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.learn{text-align:left;background:var(--asphalt);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:16px}
+.learn b{font-family:var(--display);display:block;margin-bottom:4px}
+.learn ul{margin:0;padding-left:18px;color:#cdd6e2}
+
+@media (max-width:760px){
+  #panel{left:0;right:0;top:auto;bottom:0;width:auto;max-height:52%;border-radius:18px 18px 0 0;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));border-bottom:0}
+  .steps{display:none}
+  .ttl b{font-size:17px}
+  .arbtn span{display:none}
+  .arbtn{margin-left:auto}
+}
+</style>
+</head>
+<body>
+<video id="video" playsinline muted></video>
+<div id="stage"></div>
+<div id="arMsg"></div>
+
+<!-- mapa -->
+<section id="map" aria-label="Mapa de trilhas">
+  <div class="mtop">
+    <img src="logo.png" alt="">
+    <h1>DesmontAR 2.0<small>Escolha uma trilha e avance fase por fase</small></h1>
+    <div class="stars" title="Estrelas"><svg viewBox="0 0 24 24"><path fill="#f5c518" d="M12 2l3 6.5 7 .8-5.2 4.8 1.5 7L12 17.6 5.7 21.1l1.5-7L2 9.3l7-.8z"/></svg><span id="starTotal">0</span></div>
+  </div>
+  <div class="tracks" id="tracks"></div>
+  <p class="mfoot">Protótipo · as fases marcadas com cadeado chegam nas próximas versões · <button id="resetBtn">apagar meu progresso</button></p>
+</section>
+
+<!-- jogando -->
+<div id="hud">
+  <button class="iconbtn" id="backBtn" aria-label="Voltar ao mapa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="ttl"><small id="hudTrack"></small><b id="hudTitle"></b></div>
+  <div class="steps" id="hudSteps"></div>
+  <button class="arbtn" id="arBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><circle cx="12" cy="12" r="3.2"/></svg><span id="arLabel">Ligar RA</span></button>
+  <button class="iconbtn" id="hintBtn" aria-label="Dica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0012 3z"/></svg></button>
+</div>
+<aside id="panel" aria-live="polite"></aside>
+
+<div id="result" role="dialog" aria-modal="true"><div class="rcard" id="rcard"></div></div>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="aruco.js"></script>
+<script src="trilhas.js"></script>
+</body>
+</html>
